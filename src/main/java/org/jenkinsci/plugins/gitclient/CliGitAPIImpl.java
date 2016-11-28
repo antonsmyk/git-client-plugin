@@ -42,6 +42,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -527,6 +528,7 @@ public class CliGitAPIImpl extends LegacyCompatibleGitAPIImpl {
     public MergeCommand merge() {
         return new MergeCommand() {
             public ObjectId rev;
+            public List<ObjectId> moreRevs = new ArrayList<ObjectId>();
             public String comment;
             public String strategy;
             public String fastForwardMode;
@@ -535,6 +537,11 @@ public class CliGitAPIImpl extends LegacyCompatibleGitAPIImpl {
 
             public MergeCommand setRevisionToMerge(ObjectId rev) {
                 this.rev = rev;
+                return this;
+            }
+
+            public MergeCommand addRevisionToMerge(ObjectId rev) {
+                this.moreRevs.add(rev);
                 return this;
             }
 
@@ -583,8 +590,12 @@ public class CliGitAPIImpl extends LegacyCompatibleGitAPIImpl {
                     args.add("-s");
                     args.add(strategy);
                 }
+
                 args.add(fastForwardMode);
                 args.add(rev.name());
+                for (ObjectId extraRev : moreRevs) {
+                    args.add(extraRev.name());
+                }
                 launchCommand(args);
             }
         };
@@ -877,6 +888,35 @@ public class CliGitAPIImpl extends LegacyCompatibleGitAPIImpl {
         StringWriter writer = new StringWriter();
         writer.write(launchCommand(args));
         return new ArrayList<>(Arrays.asList(writer.toString().split("\\n")));
+    }
+
+    /** {@inheritDoc} */
+    public List<String> showChangedPaths(ObjectId from, ObjectId to) throws GitException, InterruptedException {
+        ArgumentListBuilder args = new ArgumentListBuilder();
+        if (from != null){
+            args.add("diff", "--name-only", from.name() + "..." + to.name());
+        } else {
+            args.add("diff-tree", "-m", "--no-commit-id", "--name-only", "-r", to.name());
+        }
+
+        StringWriter writer = new StringWriter();
+        writer.write(launchCommand(args));
+        String output = writer.toString();
+        // handle empty return
+        List<String> al = new ArrayList<String>();
+        if (output.isEmpty()) {
+            return al;
+        }
+
+        al.addAll(Arrays.asList(output.split("\\n")));
+
+        // Remove duplicates
+        LinkedHashSet<String> s = new LinkedHashSet<String>();
+        s.addAll(al);
+        al.clear();
+        al.addAll(s);
+
+        return al;
     }
 
     /**
