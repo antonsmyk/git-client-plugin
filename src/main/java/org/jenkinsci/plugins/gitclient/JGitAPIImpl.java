@@ -1982,7 +1982,7 @@ public class JGitAPIImpl extends LegacyCompatibleGitAPIImpl {
             throw new GitException(e);
         } finally {
             if (walk != null) walk.dispose();
-            if (or != null) or.release();
+            if (or != null) or.close();
         }
 
         return treeIter;
